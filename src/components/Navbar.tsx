@@ -1,7 +1,7 @@
 import { useState, useEffect, MouseEvent } from 'react';
 import { Menu, X, ArrowRight, User as UserIcon, LogOut, Sparkles } from 'lucide-react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { auth, logoutUser } from '../lib/firebase';
+import { auth, logoutUser, isAdmin } from '../lib/firebase';
 import AuthModal from './AuthModal';
 
 interface NavbarProps {
@@ -128,18 +128,23 @@ export default function Navbar({ onScrollToContact }: NavbarProps) {
           {/* CTA Header Button */}
           <div className="hidden md:flex items-center gap-4">
             {currentUser ? (
-              <div className="flex items-center gap-3 bg-white/5 border border-white/10 px-4 py-1.5 rounded-full">
-                <div className="bg-[#E8401C]/20 border border-[#E8401C]/35 text-[#E8401C] w-7 h-7 flex items-center justify-center rounded-full font-extrabold text-xs uppercase">
+              <div className={`flex items-center gap-3 bg-white/5 border ${isAdmin(currentUser.email) ? 'border-[#F5C518]/30 bg-[#F5C518]/5 shadow-[0_0_15px_rgba(245,197,24,0.05)]' : 'border-white/10'} px-4 py-1.5 rounded-full`}>
+                <div className={`${isAdmin(currentUser.email) ? 'bg-[#F5C518]/25 border border-[#F5C518]/40 text-[#F5C518]' : 'bg-[#E8401C]/20 border border-[#E8401C]/35 text-[#E8401C]'} w-7 h-7 flex items-center justify-center rounded-full font-extrabold text-[#E8401C] text-xs uppercase`}>
                   {currentUser.displayName ? currentUser.displayName[0] : <UserIcon className="w-3.5 h-3.5" />}
                 </div>
                 <div className="text-left">
                   <p className="text-[10px] font-black text-white leading-none whitespace-nowrap">{currentUser.displayName || 'Thành Viên'}</p>
+                  {isAdmin(currentUser.email) && (
+                    <span className="inline-block text-[8px] uppercase tracking-wider text-[#F5C518] font-black mt-0.5 animate-pulse">
+                      Admin
+                    </span>
+                  )}
                 </div>
                 <button
                   type="button"
                   onClick={() => logoutUser()}
                   title="Đăng xuất"
-                  className="text-white/40 hover:text-white p-1 rounded transition-colors cursor-pointer"
+                  className="text-white/40 hover:text-white p-1 rounded transition-colors cursor-pointer ml-1"
                 >
                   <LogOut className="w-3.5 h-3.5" />
                 </button>
@@ -204,14 +209,16 @@ export default function Navbar({ onScrollToContact }: NavbarProps) {
           ))}
           <div className="pt-6 px-4 space-y-3">
             {currentUser ? (
-              <div className="p-4 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-between text-left">
+              <div className={`p-4 bg-white/5 border ${isAdmin(currentUser.email) ? 'border-[#F5C518]/30 bg-[#F5C518]/5 shadow-inner' : 'border-white/10'} rounded-2xl flex items-center justify-between text-left`}>
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-[#E8401C]/20 text-[#E8401C] flex items-center justify-center font-bold text-sm uppercase">
+                  <div className={`w-8 h-8 rounded-full ${isAdmin(currentUser.email) ? 'bg-[#F5C518]/20 text-[#F5C518]' : 'bg-[#E8401C]/20 text-[#E8401C]'} flex items-center justify-center font-bold text-sm uppercase`}>
                     {currentUser.displayName ? currentUser.displayName[0] : <UserIcon className="w-4 h-4" />}
                   </div>
                   <div>
                     <p className="text-xs text-white font-extrabold">{currentUser.displayName || currentUser.email}</p>
-                    <p className="text-[9px] uppercase font-bold text-white/45 tracking-widest">Đã đăng nhập</p>
+                    <p className="text-[9px] uppercase font-bold text-white/45 tracking-widest">
+                      {isAdmin(currentUser.email) ? '🔑 Administrator' : 'Đã đăng nhập'}
+                    </p>
                   </div>
                 </div>
                 <button

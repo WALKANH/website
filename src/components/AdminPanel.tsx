@@ -28,7 +28,8 @@ import {
   logoutFromGoogle, 
   fetchLeadsFromFirestore, 
   createGoogleSheet, 
-  syncLeadsToGoogleSheet 
+  syncLeadsToGoogleSheet,
+  isAdmin 
 } from '../lib/firebase';
 import { User } from 'firebase/auth';
 
@@ -68,10 +69,14 @@ export default function AdminPanel() {
       (currentUser, token) => {
         setUser(currentUser);
         setAccessToken(token);
+        if (currentUser && isAdmin(currentUser.email)) {
+          setIsOpen(true);
+        }
       },
       () => {
         setUser(null);
         setAccessToken(null);
+        setIsOpen(false);
       }
     );
     return () => unsubscribe();
@@ -79,10 +84,10 @@ export default function AdminPanel() {
 
   // Fetch leads when open or auth changes
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && user && isAdmin(user.email)) {
       loadLeads();
     }
-  }, [isOpen]);
+  }, [isOpen, user]);
 
   // Handle local searching & filtering of lead lists
   useEffect(() => {
@@ -281,6 +286,10 @@ export default function AdminPanel() {
     link.click();
     document.body.removeChild(link);
   };
+
+  if (!user || !isAdmin(user.email)) {
+    return null;
+  }
 
   return (
     <div id="admin-panel" className="border-t border-white/10 bg-[#0c0c0d] font-sans relative z-20">

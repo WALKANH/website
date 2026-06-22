@@ -255,3 +255,17 @@ export const fetchUserLeads = async (email: string) => {
     return all.filter(item => (item.email || '').toLowerCase() === email.toLowerCase());
   }
 };
+
+// 12. Admin role configurations and checks
+export const ADMIN_EMAILS = [
+  'vudinhanhquoc414@gmail.com', // Active Builder's email
+  'admin@tsmedia.vn',
+  'admin@tsmedia.agency',
+  'admin@gmail.com',
+  'tsmedia.admin@gmail.com'
+];
+
+export const isAdmin = (email: string | null | undefined): boolean => {
+  if (!email) return false;
+  return ADMIN_EMAILS.some(adminEmail => adminEmail.toLowerCase() === email.toLowerCase());
+};
