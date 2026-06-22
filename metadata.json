@@ -1,0 +1,6 @@
+{
+  "name": "TS Media Agency",
+  "description": "TieuSong Media & Services - Leading Vietnamese media agency specializing in KOL/KOC booking, TVC, and content production.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
