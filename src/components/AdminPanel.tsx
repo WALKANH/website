@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Database, 
   FileSpreadsheet, 
@@ -27,7 +27,8 @@ import {
   AlertTriangle,
   FileText,
   MessageSquare,
-  Volume2
+  Volume2,
+  Plus
 } from 'lucide-react';
 import { 
   initAuth, 
@@ -38,8 +39,23 @@ import {
   isAdmin 
 } from '../lib/firebase';
 import { User } from 'firebase/auth';
-import { collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc, writeBatch } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc, writeBatch, addDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { 
+  ResponsiveContainer, 
+  AreaChart, 
+  Area, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  BarChart, 
+  Bar, 
+  Cell, 
+  PieChart, 
+  Pie, 
+  Legend 
+} from 'recharts';
 
 interface AdminPanelProps {
   isFullPage?: boolean;
@@ -77,6 +93,18 @@ export default function AdminPanel({ isFullPage = false, onBackToHome }: AdminPa
   const [selectedLead, setSelectedLead] = useState<any | null>(null);
   const [internalMemo, setInternalMemo] = useState('');
   const [isSavingMemo, setIsSavingMemo] = useState(false);
+
+  // Manual Add Lead Form states
+  const [isAddLeadModalOpen, setIsAddLeadModalOpen] = useState(false);
+  const [newLeadForm, setNewLeadForm] = useState({
+    name: '',
+    phone: '',
+    email: '',
+    service: 'Booking KOL/KOC',
+    message: '',
+    adminMemo: ''
+  });
+  const [isCreatingLead, setIsCreatingLead] = useState(false);
 
   // Real-time notification toast queue
   const [newLeadToast, setNewLeadToast] = useState<any | null>(null);
@@ -137,10 +165,57 @@ export default function AdminPanel({ isFullPage = false, onBackToHome }: AdminPa
     }
   };
 
+  const [testSoundToast, setTestSoundToast] = useState(false);
+
   // Sound Test Trigger
   const testAlertSound = () => {
     playNotificationSound();
-    alert('🔔 Đã kích hoạt chuông kiểm tra thành công! Chuông này sẽ tự động reo to khi có khách mới đăng ký tư vấn.');
+    setTestSoundToast(true);
+    setTimeout(() => setTestSoundToast(false), 3500);
+  };
+
+  // Dynamically group lead submissions by date for the last 7 days
+  const getSubmissionsOverTime = () => {
+    const datesMap: { [key: string]: number } = {};
+    // Seed last 10 days with 0
+    for (let i = 9; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+      datesMap[dateStr] = 0;
+    }
+
+    leads.forEach(lead => {
+      if (!lead.createdAt) return;
+      const date = lead.createdAt.toDate ? lead.createdAt.toDate() : new Date(lead.createdAt);
+      const dateStr = date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+      if (datesMap[dateStr] !== undefined) {
+        datesMap[dateStr]++;
+      }
+    });
+
+    return Object.keys(datesMap).map(key => ({
+      name: key,
+      'Số đăng ký': datesMap[key]
+    }));
+  };
+
+  const getServiceDataForChart = () => {
+    return [
+      { name: 'KOL/KOC', value: stats.kolCount, color: '#E8401C' },
+      { name: 'Production', value: stats.productionCount, color: '#F5C518' },
+      { name: 'Marketing Ads', value: stats.marketingCount, color: '#2D9CDB' },
+      { name: 'Thử Nghiệm', value: stats.otherCount, color: '#8b5cf6' }
+    ].filter(item => item.value > 0);
+  };
+
+  const getPipelineStatusData = () => {
+    return [
+      { name: 'Mới', value: stats.newCount || 0, color: '#ef4444' },
+      { name: 'Đang xử lý', value: stats.processingCount || 0, color: '#f59e0b' },
+      { name: 'Hẹn gặp', value: stats.completedCount || 0, color: '#10b981' },
+      { name: 'Từ chối', value: stats.declinedCount || 0, color: '#6b7280' }
+    ];
   };
 
   // Initialize Auth handler
@@ -477,6 +552,50 @@ export default function AdminPanel({ isFullPage = false, onBackToHome }: AdminPa
     }
   };
 
+  // Manual lead creation handler
+  const handleCreateLead = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newLeadForm.name || !newLeadForm.phone) {
+      alert('Vui lòng nhập Họ tên và Số điện thoại!');
+      return;
+    }
+
+    setIsCreatingLead(true);
+    try {
+      const generatedId = `lead_${Math.random().toString(36).slice(2, 11)}`;
+      const leadData = {
+        name: newLeadForm.name,
+        phone: newLeadForm.phone,
+        email: newLeadForm.email,
+        service: newLeadForm.service,
+        message: newLeadForm.message,
+        adminMemo: newLeadForm.adminMemo,
+        createdAt: new Date().toISOString(),
+        status: 'Mới',
+        id: generatedId
+      };
+
+      await addDoc(collection(db, 'leads'), leadData);
+
+      // Clean form state
+      setNewLeadForm({
+        name: '',
+        phone: '',
+        email: '',
+        service: 'Booking KOL/KOC',
+        message: '',
+        adminMemo: ''
+      });
+      setIsAddLeadModalOpen(false);
+      alert('🎉 Đã thêm đơn tư vấn thủ công thành công!');
+    } catch (err) {
+      console.error('Lỗi thêm đơn tư vấn:', err);
+      alert('Không thể kết nối lưu đơn tư vấn.');
+    } finally {
+      setIsCreatingLead(false);
+    }
+  };
+
   // Clean Delete CRM Items
   const handleDeleteLead = async (leadId: string) => {
     const doubleConfirm = window.confirm('🚨 CẢNH BÁO SẾP: Bạn có chắc chắn muốn XÓA VĨNH VIỄN thông tin liên hệ này ra khỏi database đám mây Firestore không? Thao tác này hoàn toàn không thể khôi phục.');
@@ -588,6 +707,13 @@ export default function AdminPanel({ isFullPage = false, onBackToHome }: AdminPa
             
             {/* Visual KPI & Analytics Dashboard Area */}
             <div className="space-y-4">
+              {testSoundToast && (
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold rounded-xl text-center flex items-center justify-center gap-2 animate-in fade-in slide-in-from-top-4 duration-300">
+                  <span>🔔</span>
+                  <span>Hệ thống đã kích hoạt chuông báo thành công! Chuông này sẽ phát nhạc trực tiếp mỗi khi có khách mới ghi danh vào CRM.</span>
+                </div>
+              )}
+
               <div className="flex items-center justify-between">
                 <h3 className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#E8401C]"></span>
@@ -673,86 +799,174 @@ export default function AdminPanel({ isFullPage = false, onBackToHome }: AdminPa
                 </div>
               </div>
 
-              {/* Graph distribution metrics progress lines */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="p-5 bg-white/[0.01] border border-white/5 rounded-2xl space-y-4 text-left">
-                  <h4 className="text-[10px] uppercase tracking-wider text-white/45 font-bold">Thống kê dịch vụ quan tâm (Service Distribution)</h4>
-                  <div className="space-y-3">
-                    {/* Booking KOL */}
+              {/* Premium Analytics Dashboard Charts Section */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                
+                {/* 1. Lead Growth / Signups Over Time Trend (Area Chart) - 8 Cols on desktop */}
+                <div className="lg:col-span-8 p-6 bg-[#111111] border border-white/5 rounded-3xl text-left space-y-4 shadow-xl">
+                  <div className="flex items-center justify-between">
                     <div>
-                      <div className="flex items-center justify-between text-xs font-semibold text-white/80 mb-1">
-                        <span>⭐ Booking KOL/KOC</span>
-                        <span>{stats.kolCount} lead ({stats.total > 0 ? Math.round((stats.kolCount / stats.total) * 100) : 0}%)</span>
-                      </div>
-                      <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden">
-                        <div 
-                          className="bg-[#E8401C] h-full rounded-full transition-all duration-500"
-                          style={{ width: `${stats.total > 0 ? (stats.kolCount / stats.total) * 100 : 0}%` }}
-                        ></div>
+                      <h4 className="text-xs font-black uppercase text-white tracking-widest">Xu Hướng Đăng Ký Live (Lead Trend)</h4>
+                      <p className="text-[10px] text-white/40">Thống kê số lượng khách tư vấn ghi danh trong 10 ngày gần nhất</p>
+                    </div>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-[#E8401C] bg-[#E8401C]/10 border border-[#E8451C]/15 px-2.5 py-1 rounded-full">
+                      Tăng trưởng liên tục
+                    </span>
+                  </div>
+
+                  <div className="h-[240px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart
+                        data={getSubmissionsOverTime()}
+                        margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                      >
+                        <defs>
+                          <linearGradient id="colorSubmit" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#E8401C" stopOpacity={0.4}/>
+                            <stop offset="95%" stopColor="#E8401C" stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" />
+                        <XAxis 
+                          dataKey="name" 
+                          stroke="rgba(255,255,255,0.3)" 
+                          fontSize={10} 
+                          tickLine={false} 
+                        />
+                        <YAxis 
+                          stroke="rgba(255,255,255,0.3)" 
+                          fontSize={10} 
+                          tickLine={false} 
+                          allowDecimals={false}
+                        />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: '#161618', 
+                            borderColor: 'rgba(255,255,255,0.1)',
+                            borderRadius: '12px',
+                            color: '#fff',
+                            fontSize: '11px'
+                          }} 
+                        />
+                        <Area 
+                          type="monotone" 
+                          dataKey="Số đăng ký" 
+                          stroke="#E8401C" 
+                          strokeWidth={2.5}
+                          fillOpacity={1} 
+                          fill="url(#colorSubmit)" 
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* 2. Lead Distribution Pie/Bar Analyser - 4 Cols on desktop */}
+                <div className="lg:col-span-4 p-6 bg-[#111111] border border-white/5 rounded-3xl text-left flex flex-col justify-between shadow-xl">
+                  <div>
+                    <h4 className="text-xs font-black uppercase text-white tracking-widest mb-1">Cơ Cấu Trạng Thái (Pipeline stage)</h4>
+                    <p className="text-[10px] text-white/40 mb-4">Tỷ lệ xử lý hồ sơ khách hàng hiện tại</p>
+
+                    <div className="h-[160px] w-full relative flex items-center justify-center">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={getPipelineStatusData()}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={50}
+                            outerRadius={70}
+                            paddingAngle={4}
+                            dataKey="value"
+                          >
+                            {getPipelineStatusData().map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <div className="absolute flex flex-col items-center">
+                        <span className="text-2xl font-black text-white">{stats.total}</span>
+                        <span className="text-[8px] uppercase font-black text-white/30 tracking-widest">KHÁCH MẪU</span>
                       </div>
                     </div>
 
-                    {/* TVC Production */}
-                    <div>
-                      <div className="flex items-center justify-between text-xs font-semibold text-white/80 mb-1">
-                        <span>🎬 Vận hành Production & Video</span>
-                        <span>{stats.productionCount} lead ({stats.total > 0 ? Math.round((stats.productionCount / stats.total) * 100) : 0}%)</span>
-                      </div>
-                      <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden">
-                        <div 
-                          className="bg-[#F5C518] h-full rounded-full transition-all duration-500"
-                          style={{ width: `${stats.total > 0 ? (stats.productionCount / stats.total) * 100 : 0}%` }}
-                        ></div>
-                      </div>
-                    </div>
-
-                    {/* Markting, Ads */}
-                    <div>
-                      <div className="flex items-center justify-between text-xs font-semibold text-white/80 mb-1">
-                        <span>📈 Vận hành Ads, Seeding & Multichannel Content</span>
-                        <span>{stats.marketingCount} lead ({stats.total > 0 ? Math.round((stats.marketingCount / stats.total) * 100) : 0}%)</span>
-                      </div>
-                      <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden">
-                        <div 
-                          className="bg-[#2D9CDB] h-full rounded-full transition-all duration-500"
-                          style={{ width: `${stats.total > 0 ? (stats.marketingCount / stats.total) * 100 : 0}%` }}
-                        ></div>
-                      </div>
-                    </div>
-
-                    {/* Others */}
-                    <div>
-                      <div className="flex items-center justify-between text-xs font-semibold text-white/80 mb-1">
-                        <span>📦 Gói Thử Nghiệm / Đột Phá / Khác</span>
-                        <span>{stats.otherCount} lead ({stats.total > 0 ? Math.round((stats.otherCount / stats.total) * 100) : 0}%)</span>
-                      </div>
-                      <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden">
-                        <div 
-                          className="bg-gray-500 h-full rounded-full transition-all duration-500"
-                          style={{ width: `${stats.total > 0 ? (stats.otherCount / stats.total) * 100 : 0}%` }}
-                        ></div>
-                      </div>
+                    {/* Custom Pie Legend */}
+                    <div className="grid grid-cols-2 gap-2 mt-4">
+                      {getPipelineStatusData().map((entry, idx) => (
+                        <div key={idx} className="flex items-center gap-2 text-[10.5px]">
+                          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
+                          <span className="text-white/60 truncate font-semibold">{entry.name}:</span>
+                          <span className="text-white font-extrabold ml-auto">{entry.value}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
 
-                <div className="p-5 bg-gradient-to-br from-emerald-950/25 to-[#0e0e10] border border-emerald-500/20 rounded-2xl relative text-left overflow-hidden flex flex-col justify-between">
+              </div>
+
+              {/* Service analytical bar charts & Excel export Row */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                
+                {/* 3. Bar Chart distribution - 7 Cols */}
+                <div className="lg:col-span-7 p-6 bg-[#111111] border border-white/5 rounded-3xl text-left space-y-4 shadow-xl">
                   <div>
-                    <h4 className="text-[10px] uppercase tracking-wider text-emerald-400 font-black flex items-center gap-1.5">
-                      <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
-                      Xuất Báo Cáo Excel nhanh
+                    <h4 className="text-xs font-black uppercase text-white tracking-widest">Dịch Vụ Được Quan Tâm Nhất (Service Popularity)</h4>
+                    <p className="text-[10px] text-white/40">Phân tích khối lượng công việc mong muốn của khách hàng tiềm năng</p>
+                  </div>
+
+                  <div className="h-[200px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={getServiceDataForChart()}
+                        margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" />
+                        <XAxis 
+                          dataKey="name" 
+                          stroke="rgba(255,255,255,0.3)" 
+                          fontSize={10} 
+                          tickLine={false} 
+                        />
+                        <YAxis stroke="rgba(255,255,255,0.3)" fontSize={10} tickLine={false} allowDecimals={false} />
+                        <Tooltip
+                          contentStyle={{ 
+                            backgroundColor: '#161618', 
+                            borderColor: 'rgba(255,255,255,0.1)',
+                            borderRadius: '12px',
+                            color: '#fff',
+                            fontSize: '11px'
+                          }}
+                        />
+                        <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                          {getServiceDataForChart().map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* 4. Excel Quick actions - 5 Cols */}
+                <div className="lg:col-span-5 p-6 bg-gradient-to-br from-emerald-950/25 to-[#0e0e10] border border-emerald-500/20 rounded-3xl relative text-left overflow-hidden flex flex-col justify-between shadow-xl">
+                  <div>
+                    <h4 className="text-xs uppercase tracking-wider text-emerald-400 font-extrabold flex items-center gap-2">
+                      <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+                      Xuất Báo Cáo Excel nhanh (.csv)
                     </h4>
-                    <p className="text-xs text-white/60 leading-relaxed mt-2 mb-4">
+                    <p className="text-xs text-white/60 leading-relaxed mt-2.5 mb-4 font-medium">
                       Tải xuống trực tiếp danh sách thông tin khách hàng tiềm năng đã đăng ký. Hệ thống tự động định dạng số điện thoại chuẩn không mất số 0 và tương thích 100% với MS Excel toàn cầu.
                     </p>
                     
-                    <div className="p-3 bg-white/5 border border-white/10 rounded-xl space-y-2">
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-white/40">Tổng số dòng sẵn sàng:</span>
+                    <div className="p-3.5 bg-white/5 border border-white/10 rounded-xl space-y-2.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-white/40 font-medium">Tổng số dòng sẵn sàng:</span>
                         <span className="text-emerald-400 font-extrabold">{leads.length} dòng</span>
                       </div>
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-white/40">Khớp bộ lọc hiện tại:</span>
+                      <div className="flex items-center justify-between text-xs border-t border-white/5 pt-2.5">
+                        <span className="text-white/40 font-medium">Khớp bộ lọc hiện tại:</span>
                         <span className="text-amber-400 font-extrabold">{filteredLeads.length} dòng</span>
                       </div>
                     </div>
@@ -761,13 +975,14 @@ export default function AdminPanel({ isFullPage = false, onBackToHome }: AdminPa
                   <div className="pt-4 border-t border-white/5 mt-4">
                     <button
                       onClick={downloadLocalCSV}
-                      className="w-full inline-flex items-center justify-center gap-2 py-3 px-4 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-black uppercase tracking-wider transition-all duration-300 cursor-pointer shadow-lg shadow-emerald-500/10 active:scale-97"
+                      className="w-full inline-flex items-center justify-center gap-2.5 py-3.5 px-4 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-black uppercase tracking-wider transition-all duration-300 cursor-pointer shadow-lg shadow-emerald-500/10 active:scale-97"
                     >
                       <Download className="w-4 h-4" />
-                      Tải Tệp Excel (.xlsx/csv)
+                      Tải Tệp Excel Trực Tiếp (.xlsx/csv)
                     </button>
                   </div>
                 </div>
+
               </div>
             </div>
 
@@ -866,6 +1081,15 @@ export default function AdminPanel({ isFullPage = false, onBackToHome }: AdminPa
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => setIsAddLeadModalOpen(true)}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#E8401C] hover:bg-white hover:text-black border border-transparent text-white text-[10.5px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-lg shadow-[#E8401C]/10"
+                      title="Thêm mới đơn tư vấn thủ công"
+                    >
+                      <Plus className="w-3.5 h-3.5 shrink-0" />
+                      <span>Thêm đơn mới</span>
+                    </button>
+
                     {leads.length > 0 && (
                       <button
                         onClick={downloadLocalCSV}
@@ -1138,6 +1362,127 @@ export default function AdminPanel({ isFullPage = false, onBackToHome }: AdminPa
               </div>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* Manual Add Lead Modal Dialogue */}
+      {isAddLeadModalOpen && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
+          <div className="bg-[#121214] border border-white/10 rounded-3xl max-w-lg w-full p-6 text-left relative space-y-4 shadow-2xl">
+            <button
+              onClick={() => setIsAddLeadModalOpen(false)}
+              className="absolute top-4 right-4 p-2 text-white/40 hover:text-white hover:bg-white/5 rounded-full transition-all cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Section heading */}
+            <div className="flex items-center gap-3 pb-3 border-b border-white/5">
+              <div className="w-10 h-10 rounded-full bg-[#E8401C]/10 text-[#E8401C] flex items-center justify-center shrink-0">
+                <Plus className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-[10px] font-black text-[#E8401C] uppercase tracking-wider">CRM QUẢN TRỊ VIÊN</span>
+                <h4 className="text-white font-extrabold text-base">Thêm Đơn Tư Vấn Thủ Công</h4>
+              </div>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleCreateLead} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="flex flex-col space-y-1.5">
+                  <label className="text-[10px] font-bold text-white/70 uppercase">Họ và Tên khích <span className="text-[#E8401C]">*</span></label>
+                  <input
+                    type="text"
+                    required
+                    value={newLeadForm.name}
+                    onChange={(e) => setNewLeadForm(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="Nguyễn Văn A"
+                    className="w-full bg-[#1c1c1e] text-white border border-white/10 rounded-xl py-2 px-3 text-xs focus:bg-[#252528] focus:outline-none focus:ring-1 focus:ring-[#E8401C] transition-all"
+                  />
+                </div>
+                <div className="flex flex-col space-y-1.5">
+                  <label className="text-[10px] font-bold text-white/70 uppercase">Số điện thoại <span className="text-[#E8401C]">*</span></label>
+                  <input
+                    type="text"
+                    required
+                    value={newLeadForm.phone}
+                    onChange={(e) => setNewLeadForm(prev => ({ ...prev, phone: e.target.value }))}
+                    placeholder="0912345678"
+                    className="w-full bg-[#1c1c1e] text-white border border-white/10 rounded-xl py-2 px-3 text-xs focus:bg-[#252528] focus:outline-none focus:ring-1 focus:ring-[#E8401C] transition-all"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col space-y-1.5">
+                <label className="text-[10px] font-bold text-white/70 uppercase">Địa chỉ Email</label>
+                <input
+                  type="email"
+                  value={newLeadForm.email}
+                  onChange={(e) => setNewLeadForm(prev => ({ ...prev, email: e.target.value }))}
+                  placeholder="name@company.com"
+                  className="w-full bg-[#1c1c1e] text-white border border-white/10 rounded-xl py-2 px-3 text-xs focus:bg-[#252528] focus:outline-none focus:ring-1 focus:ring-[#E8401C] transition-all"
+                />
+              </div>
+
+              <div className="flex flex-col space-y-1.5">
+                <label className="text-[10px] font-bold text-white/70 uppercase">Dịch Vụ / Gói Quan Tâm</label>
+                <select
+                  value={newLeadForm.service}
+                  onChange={(e) => setNewLeadForm(prev => ({ ...prev, service: e.target.value }))}
+                  className="w-full bg-[#1c1c1e] text-white border border-white/10 rounded-xl py-2 px-3 text-xs focus:bg-[#252528] focus:outline-none focus:ring-1 focus:ring-[#E8401C] transition-all"
+                >
+                  <option value="Booking KOL/KOC">Booking KOL/KOC</option>
+                  <option value="Sản xuất TVC & Video">Sản xuất TVC & Video</option>
+                  <option value="Chụp ảnh Lookbook">Chụp ảnh Lookbook</option>
+                  <option value="Seeding Đa Nền Tảng">Seeding Đa Nền Tảng</option>
+                  <option value="Sáng Tạo Content Đa Kênh">Sáng Tạo Content Đa Kênh</option>
+                  <option value="Gói Thử Nghiệm (Basic)">Gói Thử Nghiệm (Basic)</option>
+                  <option value="Gói Phủ Sóng (Standard)">Gói Phủ Sóng (Standard)</option>
+                  <option value="Gói Đột Phá (Premium)">Gói Đột Phá (Premium)</option>
+                </select>
+              </div>
+
+              <div className="flex flex-col space-y-1.5">
+                <label className="text-[10px] font-bold text-white/70 uppercase">Mô tả nhu cầu / Lời nhắn</label>
+                <textarea
+                  rows={2}
+                  value={newLeadForm.message}
+                  onChange={(e) => setNewLeadForm(prev => ({ ...prev, message: e.target.value }))}
+                  placeholder="Ghi chú về phân khúc sản phẩm, kế hoạch chiến dịch hoặc ngân sách..."
+                  className="w-full bg-[#1c1c1e] text-white border border-white/10 rounded-xl py-2 px-3 text-xs focus:bg-[#252528] focus:outline-none focus:ring-1 focus:ring-[#E8401C] transition-all font-medium"
+                />
+              </div>
+
+              <div className="flex flex-col space-y-1.5">
+                <label className="text-[10px] font-bold text-[#F5C518] uppercase">✏️ Ghi chú nội bộ Admin</label>
+                <textarea
+                  rows={2}
+                  value={newLeadForm.adminMemo}
+                  onChange={(e) => setNewLeadForm(prev => ({ ...prev, adminMemo: e.target.value }))}
+                  placeholder="Ghi chú trạng thái, kết quả hẹn cuộc gọi ban đầu..."
+                  className="w-full bg-[#1c1c1e] text-white border border-white/10 rounded-xl py-2 px-3 text-xs focus:bg-[#252528] focus:outline-none focus:ring-1 focus:ring-[#E8401C] transition-all font-medium"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-white/5">
+                <button
+                  type="button"
+                  onClick={() => setIsAddLeadModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white text-xs font-semibold select-none cursor-pointer"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCreatingLead}
+                  className="px-5 py-2 rounded-xl bg-[#E8401C] hover:bg-[#ff512d] text-white text-xs font-black uppercase tracking-wider select-none cursor-pointer"
+                >
+                  {isCreatingLead ? 'Đang lưu...' : 'Lưu Đơn Mới'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

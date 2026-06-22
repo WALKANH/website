@@ -1,5 +1,5 @@
 import { useState, useEffect, MouseEvent } from 'react';
-import { Menu, X, ArrowRight, User as UserIcon, LogOut, Sparkles, Database } from 'lucide-react';
+import { Menu, X, ArrowRight, User as UserIcon, LogOut, Sparkles, Database, Sun, Moon } from 'lucide-react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth, logoutUser, isAdmin } from '../lib/firebase';
 import AuthModal from './AuthModal';
@@ -8,9 +8,17 @@ interface NavbarProps {
   onScrollToContact: () => void;
   isAdminDashboardOpen: boolean;
   onToggleAdminDashboard: (isOpen: boolean) => void;
+  isLightMode: boolean;
+  onToggleTheme: () => void;
 }
 
-export default function Navbar({ onScrollToContact, isAdminDashboardOpen, onToggleAdminDashboard }: NavbarProps) {
+export default function Navbar({ 
+  onScrollToContact, 
+  isAdminDashboardOpen, 
+  onToggleAdminDashboard,
+  isLightMode,
+  onToggleTheme
+}: NavbarProps) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [activeSection, setActiveSection] = useState('hero');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -150,6 +158,14 @@ export default function Navbar({ onScrollToContact, isAdminDashboardOpen, onTogg
 
           {/* CTA Header Button */}
           <div className="hidden md:flex items-center gap-4">
+            <button
+              onClick={onToggleTheme}
+              className="p-2.5 bg-white/5 hover:bg-white/10 text-white rounded-full border border-white/10 hover:border-white/20 transition-all duration-300 cursor-pointer flex items-center justify-center shrink-0"
+              title={isLightMode ? "Giao diện tối" : "Giao diện sáng"}
+            >
+              {isLightMode ? <Moon className="w-4 h-4 text-amber-400" /> : <Sun className="w-4 h-4 text-amber-500" />}
+            </button>
+
             {currentUser ? (
               <div className={`flex items-center gap-3 bg-white/5 border ${isAdmin(currentUser.email) ? 'border-[#F5C518]/30 bg-[#F5C518]/5 shadow-[0_0_15px_rgba(245,197,24,0.05)]' : 'border-white/10'} px-4 py-1.5 rounded-full`}>
                 <div className={`${isAdmin(currentUser.email) ? 'bg-[#F5C518]/25 border border-[#F5C518]/40 text-[#F5C518]' : 'bg-[#E8401C]/20 border border-[#E8401C]/35 text-[#E8401C]'} w-7 h-7 flex items-center justify-center rounded-full font-extrabold text-[#E8401C] text-xs uppercase`}>
@@ -197,7 +213,14 @@ export default function Navbar({ onScrollToContact, isAdminDashboardOpen, onTogg
           </div>
 
           {/* Mobile menu button */}
-          <div className="md:hidden flex items-center">
+          <div className="md:hidden flex items-center gap-2">
+            <button
+              onClick={onToggleTheme}
+              className="p-2 text-gray-300 hover:text-white rounded-full bg-white/5 border border-white/10 inline-flex items-center justify-center shrink-0 cursor-pointer"
+              title={isLightMode ? "Giao diện tối" : "Giao diện sáng"}
+            >
+              {isLightMode ? <Moon className="w-4 h-4 text-amber-400" /> : <Sun className="w-4 h-4 text-amber-500" />}
+            </button>
             <button
               id="btn-mobile-menu"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}

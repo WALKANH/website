@@ -385,32 +385,15 @@ export default function ContactForm({ preselectedPlan }: ContactFormProps) {
                   )}
                 </div>
 
-                {currentUser && isAdmin(currentUser.email) && (
-                  <div className="p-3 bg-amber-500/5 rounded-2xl border border-amber-500/20 text-left">
-                    <p className="text-[11px] text-amber-500 leading-relaxed font-semibold">
-                      💡 <strong>Lưu ý cho Admin/Sếp:</strong> Sếp đang xem biểu mẫu này dưới quyền Admin. Sếp có thể click nút <strong>"Dashboard Admin"</strong> ở thanh menu đầu trang để theo dõi, quản trị hoặc tải trực tiếp tài liệu Excel thống kê chất lượng lead!
-                    </p>
-                  </div>
-                )}
-
                 {/* User Options */}
                 <div className="flex flex-col sm:flex-row gap-3 pt-2">
                   <button
                     onClick={() => setSubmittedLead(null)}
                     type="button"
-                    className="flex-1 py-3 px-6 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold rounded-full text-xs uppercase tracking-wider transition-all text-center cursor-pointer"
+                    className="w-full py-3 px-6 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold rounded-full text-xs uppercase tracking-wider transition-all text-center cursor-pointer"
                   >
                     Tạo phiếu yêu cầu khác
                   </button>
-                  {(!currentUser || !isAdmin(currentUser.email)) && (
-                    <button
-                      onClick={() => setIsAuthModalOpen(true)}
-                      type="button"
-                      className="flex-1 py-3 px-6 bg-[#E8401C] hover:bg-[#ff512d] text-white font-black rounded-full text-xs uppercase tracking-wider transition-all text-center cursor-pointer shadow-lg shadow-[#E8401C]/25"
-                    >
-                      Đăng Nhập Quản Lý
-                    </button>
-                  )}
                 </div>
               </div>
             ) : (
@@ -544,23 +527,7 @@ export default function ContactForm({ preselectedPlan }: ContactFormProps) {
                 </div>
 
                 {/* Customer Online Logs Timeline inside client box */}
-                {currentUser && isAdmin(currentUser.email) ? (
-                  <div className="mt-8 pt-6 border-t border-amber-500/20 space-y-3">
-                    <div className="p-4 bg-[#F5C518]/5 border border-[#F5C518]/20 rounded-2xl text-left space-y-2">
-                      <p className="text-xs font-black text-[#F5C518] uppercase tracking-wider flex items-center gap-1.5">
-                        <Sparkles className="w-4 h-4 text-[#F5C518]" />
-                        Báo cáo nội bộ TS Media
-                      </p>
-                      <p className="text-[11px] text-white/70 leading-relaxed font-medium">
-                        Chào sếp! Hiện tại sếp đang đăng nhập bằng tài khoản <strong className="text-white">Quản trị viên</strong>. Hệ thống tự động kích hoạt bảng thống kê chi tiết, kiểm tra dữ liệu khách hàng đăng ký và bảng tích hợp Google Sheets thời gian thực ngay bên dưới thanh footer của website này.
-                      </p>
-                      <div className="pt-2 flex items-center gap-1 text-[10px] text-amber-500/80 font-bold">
-                        <span>Kéo xuống cuối trang để mở Workspace</span>
-                        <ChevronRight className="w-3.5 h-3.5 animate-pulse" />
-                      </div>
-                    </div>
-                  </div>
-                ) : currentUser && userLeads.length > 0 ? (
+                {currentUser && userLeads.length > 0 ? (
                   <div className="mt-8 pt-6 border-t border-white/10 space-y-4">
                     <div className="flex items-center justify-between">
                       <h4 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">

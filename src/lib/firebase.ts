@@ -126,20 +126,19 @@ export const saveLeadToFirestore = async (lead: {
     console.warn('LocalStorage backup failed:', e);
   }
 
-  // 2. Trigger Firestore write asynchronously in the background. Does NOT block the UI thread!
-  addDoc(collection(db, 'leads'), leadData)
-    .then((docRef) => {
-      // Upon successful online write, clean local backup queue item
-      try {
-        const offlineLeads = JSON.parse(localStorage.getItem('ts_offline_leads') || '[]');
-        const updated = offlineLeads.filter((l: any) => l.createdAt !== leadData.createdAt);
-        localStorage.setItem('ts_offline_leads', JSON.stringify(updated));
-      } catch (err) {}
-      console.log('Lead synced to background Firestore perfectly:', docRef.id);
-    })
-    .catch((error) => {
-      console.warn('Network offline, lead safely preserved in local queue:', error);
-    });
+  // 2. We must await the Firestore write to make sure it is saved online, avoiding losing data if they close the tab!
+  try {
+    const docRef = await addDoc(collection(db, 'leads'), leadData);
+    // Upon successful online write, clean local backup queue item
+    try {
+      const offlineLeads = JSON.parse(localStorage.getItem('ts_offline_leads') || '[]');
+      const updated = offlineLeads.filter((l: any) => l.createdAt !== leadData.createdAt);
+      localStorage.setItem('ts_offline_leads', JSON.stringify(updated));
+    } catch (err) {}
+    console.log('Lead synced to background Firestore perfectly:', docRef.id);
+  } catch (error) {
+    console.warn('Network offline, lead safely preserved in local queue:', error);
+  }
 
   // 3. Instantly return generated lead reference ID to the client form for immediate confirmation page rendering
   return generatedId;

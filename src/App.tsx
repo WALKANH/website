@@ -30,6 +30,29 @@ import {
 export default function App() {
   const [selectedPlan, setSelectedPlan] = useState('');
   const [isAdminDashboardOpen, setIsAdminDashboardOpen] = useState(false);
+  const [isLightMode, setIsLightMode] = useState(() => {
+    const saved = localStorage.getItem('theme');
+    if (saved === 'light') {
+      document.documentElement.classList.add('light');
+      return true;
+    }
+    document.documentElement.classList.remove('light');
+    return false;
+  });
+
+  const toggleTheme = () => {
+    setIsLightMode((prev) => {
+      const newVal = !prev;
+      if (newVal) {
+        document.documentElement.classList.add('light');
+        localStorage.setItem('theme', 'light');
+      } else {
+        document.documentElement.classList.remove('light');
+        localStorage.setItem('theme', 'dark');
+      }
+      return newVal;
+    });
+  };
 
   const scrollToSection = (id: string) => {
     const element = document.getElementById(id);
@@ -58,6 +81,8 @@ export default function App() {
         }} 
         isAdminDashboardOpen={isAdminDashboardOpen}
         onToggleAdminDashboard={setIsAdminDashboardOpen}
+        isLightMode={isLightMode}
+        onToggleTheme={toggleTheme}
       />
 
       {isAdminDashboardOpen ? (
