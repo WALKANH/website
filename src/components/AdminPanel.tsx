@@ -41,6 +41,7 @@ import {
 import { User } from 'firebase/auth';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc, writeBatch, addDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { LeadService } from '../services/leadService';
 import { 
   ResponsiveContainer, 
   AreaChart, 
@@ -286,25 +287,21 @@ export default function AdminPanel({ isFullPage = false, onBackToHome }: AdminPa
 
     setIsLoadingLeads(true);
 
-    const q = query(collection(db, 'leads'), orderBy('createdAt', 'desc'));
-    
-    const unsubscribeListener = onSnapshot(
-      q,
-      (snapshot) => {
-        const docs: any[] = [];
+    const unsubscribeListener = LeadService.subscribeToLeads(
+      (docs) => {
         const currentIds = new Set<string>();
         let brandNewLead: any = null;
 
-        snapshot.forEach((snapDoc) => {
-          const data = { ...snapDoc.data(), id: snapDoc.id };
-          docs.push(data);
-          currentIds.add(snapDoc.id);
+        docs.forEach((data) => {
+          if (data.id) {
+            currentIds.add(data.id);
+          }
         });
 
         // Detect new incoming entries (CRM Alerts)
         if (!isInitialLoadRef.current) {
           // If we had leads, find which item in currentIds is not in our known list
-          const pendingNewLeads = docs.filter(item => !knownLeadIdsRef.current.has(item.id));
+          const pendingNewLeads = docs.filter(item => item.id && !knownLeadIdsRef.current.has(item.id));
           if (pendingNewLeads.length > 0) {
             brandNewLead = pendingNewLeads[0];
           }
@@ -519,8 +516,7 @@ export default function AdminPanel({ isFullPage = false, onBackToHome }: AdminPa
   // CRM Update status direct to Firestore
   const updateLeadStatus = async (leadId: string, newStatus: string) => {
     try {
-      const leadRef = doc(db, 'leads', leadId);
-      await updateDoc(leadRef, {
+      await LeadService.updateLead(leadId, {
         status: newStatus
       });
       // Selected details panel adjustment if open
@@ -538,8 +534,7 @@ export default function AdminPanel({ isFullPage = false, onBackToHome }: AdminPa
     if (!selectedLead) return;
     setIsSavingMemo(true);
     try {
-      const leadRef = doc(db, 'leads', selectedLead.id);
-      await updateDoc(leadRef, {
+      await LeadService.updateLead(selectedLead.id, {
         adminMemo: internalMemo
       });
       setSelectedLead(prev => ({ ...prev, adminMemo: internalMemo }));
@@ -575,7 +570,7 @@ export default function AdminPanel({ isFullPage = false, onBackToHome }: AdminPa
         id: generatedId
       };
 
-      await addDoc(collection(db, 'leads'), leadData);
+      await LeadService.createLead(leadData);
 
       // Clean form state
       setNewLeadForm({
@@ -602,7 +597,7 @@ export default function AdminPanel({ isFullPage = false, onBackToHome }: AdminPa
     if (!doubleConfirm) return;
 
     try {
-      await deleteDoc(doc(db, 'leads', leadId));
+      await LeadService.deleteLead(leadId);
       if (selectedLead && selectedLead.id === leadId) {
         setSelectedLead(null);
       }

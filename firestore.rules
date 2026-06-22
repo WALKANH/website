@@ -26,8 +26,11 @@ service cloud.firestore {
                      request.resource.data.phone is string && 
                      request.resource.data.phone.size() > 0;
       
-      // Reading, updating or deleting leads is exclusively for authorized TS Media Administrators
-      allow read, update, delete: if isAdmin();
+      // Reading a single document is allowed for anyone who has the unique ID (tracking lead status)
+      allow get: if true;
+      
+      // Listing, updating or deleting leads is exclusively for authorized TS Media Administrators
+      allow list, update, delete: if isAdmin();
     }
   }
 }

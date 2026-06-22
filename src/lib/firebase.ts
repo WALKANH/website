@@ -10,8 +10,9 @@ import {
   updateProfile,
   signOut
 } from 'firebase/auth';
-import { getFirestore, collection, addDoc, getDocs, orderBy, query, where } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, getDocs, orderBy, query, where, doc, setDoc } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
+import { LeadService } from '../services/leadService';
 
 // Initialize Firebase App
 const app = initializeApp(firebaseConfig);
@@ -109,57 +110,12 @@ export const saveLeadToFirestore = async (lead: {
   service: string;
   message: string;
 }): Promise<string> => {
-  const generatedId = `lead_${Math.random().toString(36).slice(2, 11)}`;
-  const leadData = {
-    ...lead,
-    createdAt: new Date().toISOString(),
-    status: 'Mới',
-    id: generatedId
-  };
-
-  // 1. Instantly back up to local offline storage queue for immediate security
-  try {
-    const offlineLeads = JSON.parse(localStorage.getItem('ts_offline_leads') || '[]');
-    offlineLeads.push(leadData);
-    localStorage.setItem('ts_offline_leads', JSON.stringify(offlineLeads));
-  } catch (e) {
-    console.warn('LocalStorage backup failed:', e);
-  }
-
-  // 2. Trigger Firestore write in the background so it does not block the UI thread
-  // This satisfies "nhấn là thông báo xong ngay"!
-  addDoc(collection(db, 'leads'), leadData)
-    .then((docRef) => {
-      // Upon successful online write, clean local backup queue item
-      try {
-        const offlineLeads = JSON.parse(localStorage.getItem('ts_offline_leads') || '[]');
-        const updated = offlineLeads.filter((l: any) => l.id !== generatedId);
-        localStorage.setItem('ts_offline_leads', JSON.stringify(updated));
-      } catch (err) {}
-      console.log('Lead synced to background Firestore perfectly:', docRef.id);
-    })
-    .catch((error) => {
-      console.warn('Network offline or write pending, lead safely preserved in local queue:', error);
-    });
-
-  // 3. Instantly return generated lead reference ID to the client form for immediate confirmation page rendering
-  return generatedId;
+  return LeadService.createLead(lead);
 };
 
 // 5. Fetch all leads from Firestore ordered by creation date
 export const fetchLeadsFromFirestore = async () => {
-  try {
-    const q = query(collection(db, 'leads'), orderBy('createdAt', 'desc'));
-    const querySnapshot = await getDocs(q);
-    const docs: any[] = [];
-    querySnapshot.forEach((doc) => {
-      docs.push({ ...doc.data(), id: doc.id });
-    });
-    return docs;
-  } catch (error) {
-    console.error('Lỗi nạp lead từ Firestore:', error);
-    throw error;
-  }
+  return LeadService.getLeads();
 };
 
 // 6. Create Google Spreadsheet

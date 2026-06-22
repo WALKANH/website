@@ -1,8 +1,8 @@
 import { useState, useEffect, ChangeEvent, FormEvent } from 'react';
 import { Send, Phone, Mail, MapPin, CheckCircle, Sparkles, X, Clock, User as UserIcon, LogOut, ChevronRight } from 'lucide-react';
-import { saveLeadToFirestore, auth, logoutUser, isAdmin, db } from '../lib/firebase';
+import { saveLeadToFirestore, auth, logoutUser, isAdmin } from '../lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { LeadService } from '../services/leadService';
 import AuthModal from './AuthModal';
 
 interface ContactFormProps {
@@ -71,40 +71,54 @@ export default function ContactForm({ preselectedPlan }: ContactFormProps) {
   // Real-time Firestore customer request history stream
   // This satisfies "đơn tư vấn có thì tự cập nhật. Kết nối firebase mà làm. Mỗi lần thoát ra là không mất!"
   useEffect(() => {
-    const contactEmail = currentUser?.email || formData.email || localStorage.getItem('ts_client_email') || '';
-    const contactPhone = formData.phone || localStorage.getItem('ts_client_phone') || '';
-
-    if (!contactEmail && !contactPhone) {
+    const trackedLeadIds = JSON.parse(localStorage.getItem('ts_client_lead_ids') || '[]');
+    
+    if (trackedLeadIds.length === 0) {
       setUserLeads([]);
+      setIsLoadingHistory(false);
       return;
     }
 
     setIsLoadingHistory(true);
 
-    const q = query(collection(db, 'leads'), orderBy('createdAt', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const docs: any[] = [];
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        const leadEmail = (data.email || '').toLowerCase();
-        const leadPhone = data.phone || '';
-        
-        const matchesEmail = contactEmail && leadEmail === contactEmail.toLowerCase();
-        const matchesPhone = contactPhone && leadPhone === contactPhone;
-        
-        if (matchesEmail || matchesPhone) {
-          docs.push({ ...data, id: doc.id });
+    const activeListListeners: (() => void)[] = [];
+    const leadMap: Record<string, any> = {};
+
+    // Loop through each lead ID the browser has requested and listen of its status updates in real-time
+    trackedLeadIds.forEach((leadId: string) => {
+      const unsub = LeadService.subscribeToLead(
+        leadId, 
+        (updatedLead) => {
+          if (updatedLead) {
+            leadMap[leadId] = updatedLead;
+          } else {
+            // If the document was deleted remotely, remove from local list
+            delete leadMap[leadId];
+          }
+          
+          // Parse list to sorted array
+          const updatedArray = Object.values(leadMap).sort((a: any, b: any) => {
+            const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            return dateB - dateA;
+          });
+          
+          setUserLeads(updatedArray);
+          setIsLoadingHistory(false);
+        },
+        (error) => {
+          console.warn(`Real-time fetch pending or rejected for ID: ${leadId}`, error);
+          setIsLoadingHistory(false);
         }
-      });
-      setUserLeads(docs);
-      setIsLoadingHistory(false);
-    }, (error) => {
-      console.error('Real-time sync of user leads failed:', error);
-      setIsLoadingHistory(false);
+      );
+
+      activeListListeners.push(unsub);
     });
 
-    return () => unsubscribe();
-  }, [currentUser, formData.email, formData.phone, submittedLead]);
+    return () => {
+      activeListListeners.forEach(unsub => unsub());
+    };
+  }, [currentUser, submittedLead]);
 
   const loadCustomerHistory = async (email: string) => {
     // Already synced in real-time by the useEffect subscriber!
