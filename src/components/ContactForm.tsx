@@ -385,11 +385,13 @@ export default function ContactForm({ preselectedPlan }: ContactFormProps) {
                   )}
                 </div>
 
-                <div className="p-3 bg-amber-500/5 rounded-2xl border border-amber-500/20 text-left">
-                  <p className="text-[11px] text-amber-500 leading-relaxed font-semibold">
-                    💡 <strong>Lưu ý cho Admin/Sếp:</strong> Sếp có thể lăn xuống cuối trang, click nút <strong>"Mở Bảng Admin"</strong> để theo dõi, quản trị hoặc tải tài liệu Excel/Đồng bộ trực tiếp tệp leads này lên Google Sheets!
-                  </p>
-                </div>
+                {currentUser && isAdmin(currentUser.email) && (
+                  <div className="p-3 bg-amber-500/5 rounded-2xl border border-amber-500/20 text-left">
+                    <p className="text-[11px] text-amber-500 leading-relaxed font-semibold">
+                      💡 <strong>Lưu ý cho Admin/Sếp:</strong> Sếp đang xem biểu mẫu này dưới quyền Admin. Sếp có thể click nút <strong>"Dashboard Admin"</strong> ở thanh menu đầu trang để theo dõi, quản trị hoặc tải trực tiếp tài liệu Excel thống kê chất lượng lead!
+                    </p>
+                  </div>
+                )}
 
                 {/* User Options */}
                 <div className="flex flex-col sm:flex-row gap-3 pt-2">
@@ -573,7 +575,7 @@ export default function ContactForm({ preselectedPlan }: ContactFormProps) {
 
                     <div className="space-y-3 max-h-[220px] overflow-y-auto pr-1">
                       {userLeads.map((lead, idx) => (
-                        <div key={lead.id || idx} className="p-3.5 bg-white/[0.01] hover:bg-white/[0.02] border border-white/5 hover:border-white/10 rounded-xl transition-all flex items-center justify-between gap-3 text-xs">
+                        <div key={`${lead.id || 'idx'}_${idx}_${lead.createdAt || ''}`} className="p-3.5 bg-white/[0.01] hover:bg-white/[0.02] border border-white/5 hover:border-white/10 rounded-xl transition-all flex items-center justify-between gap-3 text-xs">
                           <div className="text-left space-y-1">
                             <p className="font-extrabold text-white text-xs">{lead.service}</p>
                             <p className="text-[10px] text-white/45 font-mono flex items-center gap-1">

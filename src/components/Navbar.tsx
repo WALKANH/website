@@ -1,14 +1,16 @@
 import { useState, useEffect, MouseEvent } from 'react';
-import { Menu, X, ArrowRight, User as UserIcon, LogOut, Sparkles } from 'lucide-react';
+import { Menu, X, ArrowRight, User as UserIcon, LogOut, Sparkles, Database } from 'lucide-react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth, logoutUser, isAdmin } from '../lib/firebase';
 import AuthModal from './AuthModal';
 
 interface NavbarProps {
   onScrollToContact: () => void;
+  isAdminDashboardOpen: boolean;
+  onToggleAdminDashboard: (isOpen: boolean) => void;
 }
 
-export default function Navbar({ onScrollToContact }: NavbarProps) {
+export default function Navbar({ onScrollToContact, isAdminDashboardOpen, onToggleAdminDashboard }: NavbarProps) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [activeSection, setActiveSection] = useState('hero');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -93,6 +95,7 @@ export default function Navbar({ onScrollToContact }: NavbarProps) {
             href="#hero"
             onClick={(e) => {
               e.preventDefault();
+              onToggleAdminDashboard(false);
               window.scrollTo({ top: 0, behavior: 'smooth' });
               setActiveSection('hero');
             }}
@@ -113,9 +116,12 @@ export default function Navbar({ onScrollToContact }: NavbarProps) {
               <a
                 key={link.id}
                 href={link.href}
-                onClick={(e) => handleLinkClick(e, link.id)}
+                onClick={(e) => {
+                  onToggleAdminDashboard(false);
+                  handleLinkClick(e, link.id);
+                }}
                 className={`font-medium text-sm tracking-wide transition-all duration-300 relative py-1 hover:text-brand-red ${
-                  activeSection === link.id
+                  !isAdminDashboardOpen && activeSection === link.id
                     ? 'text-brand-red'
                     : 'text-white/70'
                 }`}
@@ -123,6 +129,23 @@ export default function Navbar({ onScrollToContact }: NavbarProps) {
                 {link.name}
               </a>
             ))}
+
+            {/* Dashboard button placed next to "Liên hệ" */}
+            {currentUser && isAdmin(currentUser.email) && (
+              <button
+                onClick={() => onToggleAdminDashboard(!isAdminDashboardOpen)}
+                className={`font-extrabold text-sm tracking-wide transition-all duration-300 py-1 flex items-center gap-1.5 cursor-pointer relative ${
+                  isAdminDashboardOpen ? 'text-[#F5C518] hover:text-[#F5C518]/90' : 'text-amber-500 hover:text-amber-400'
+                }`}
+              >
+                <Database className="w-4 h-4 text-amber-500 shrink-0" />
+                <span>Dashboard Admin</span>
+                <span className="absolute -top-1.5 -right-1.5 flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#E8401C] opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[#E8401C]"></span>
+                </span>
+              </button>
+            )}
           </div>
 
           {/* CTA Header Button */}
@@ -142,7 +165,10 @@ export default function Navbar({ onScrollToContact }: NavbarProps) {
                 </div>
                 <button
                   type="button"
-                  onClick={() => logoutUser()}
+                  onClick={() => {
+                    logoutUser();
+                    onToggleAdminDashboard(false);
+                  }}
                   title="Đăng xuất"
                   className="text-white/40 hover:text-white p-1 rounded transition-colors cursor-pointer ml-1"
                 >
@@ -160,7 +186,10 @@ export default function Navbar({ onScrollToContact }: NavbarProps) {
 
             <button
               id="cta-navbar"
-              onClick={onScrollToContact}
+              onClick={(e) => {
+                onToggleAdminDashboard(false);
+                onScrollToContact();
+              }}
               className="bg-[#E8401C] text-white px-6 py-2.5 rounded-full font-semibold hover:bg-white hover:text-[#111111] transition-all shadow-lg shadow-[#E8401C]/20 hover:scale-[1.03] active:scale-[0.97]"
             >
               Nhận Tư Vấn
@@ -197,9 +226,12 @@ export default function Navbar({ onScrollToContact }: NavbarProps) {
             <a
               key={link.id}
               href={link.href}
-              onClick={(e) => handleLinkClick(e, link.id)}
+              onClick={(e) => {
+                onToggleAdminDashboard(false);
+                handleLinkClick(e, link.id);
+              }}
               className={`block px-4 py-3 rounded-lg text-lg font-semibold transition-all duration-200 ${
-                activeSection === link.id
+                !isAdminDashboardOpen && activeSection === link.id
                   ? 'bg-[#E8401C]/10 text-[#E8401C] border-l-4 border-[#E8401C] pl-3'
                   : 'text-white/70 hover:bg-white/5 hover:text-white'
               }`}
@@ -207,11 +239,29 @@ export default function Navbar({ onScrollToContact }: NavbarProps) {
               {link.name}
             </a>
           ))}
+
+          {currentUser && isAdmin(currentUser.email) && (
+            <button
+              onClick={() => {
+                onToggleAdminDashboard(!isAdminDashboardOpen);
+                setMobileMenuOpen(false);
+              }}
+              className={`w-full text-left px-4 py-3 rounded-lg text-lg font-semibold transition-all duration-200 flex items-center gap-2 cursor-pointer ${
+                isAdminDashboardOpen
+                  ? 'bg-amber-500/10 text-amber-500 border-l-4 border-amber-500 pl-3'
+                  : 'text-amber-500 hover:bg-white/5 hover:text-amber-400'
+              }`}
+            >
+              <Database className="w-5 h-5" />
+              <span>Dashboard Admin</span>
+            </button>
+          )}
+
           <div className="pt-6 px-4 space-y-3">
             {currentUser ? (
               <div className={`p-4 bg-white/5 border ${isAdmin(currentUser.email) ? 'border-[#F5C518]/30 bg-[#F5C518]/5 shadow-inner' : 'border-white/10'} rounded-2xl flex items-center justify-between text-left`}>
                 <div className="flex items-center gap-3">
-                  <div className={`w-8 h-8 rounded-full ${isAdmin(currentUser.email) ? 'bg-[#F5C518]/20 text-[#F5C518]' : 'bg-[#E8401C]/20 text-[#E8401C]'} flex items-center justify-center font-bold text-sm uppercase`}>
+                  <div className={`w-8 h-8 rounded-full ${isAdmin(currentUser.email) ? 'bg-[#F5C518]/25 text-[#F5C518] font-black border border-[#F5C518]/30' : 'bg-[#E8401C]/20 text-[#E8401C]'} flex items-center justify-center font-bold text-sm uppercase`}>
                     {currentUser.displayName ? currentUser.displayName[0] : <UserIcon className="w-4 h-4" />}
                   </div>
                   <div>
@@ -224,6 +274,7 @@ export default function Navbar({ onScrollToContact }: NavbarProps) {
                 <button
                   onClick={() => {
                     logoutUser();
+                    onToggleAdminDashboard(false);
                     setMobileMenuOpen(false);
                   }}
                   className="p-2 bg-white/5 rounded-lg text-white/40 hover:text-white transition-colors cursor-pointer"
@@ -247,6 +298,7 @@ export default function Navbar({ onScrollToContact }: NavbarProps) {
             <button
               id="cta-mobile-contact"
               onClick={() => {
+                onToggleAdminDashboard(false);
                 onScrollToContact();
                 setMobileMenuOpen(false);
               }}

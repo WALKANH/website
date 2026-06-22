@@ -29,6 +29,7 @@ import {
 
 export default function App() {
   const [selectedPlan, setSelectedPlan] = useState('');
+  const [isAdminDashboardOpen, setIsAdminDashboardOpen] = useState(false);
 
   const scrollToSection = (id: string) => {
     const element = document.getElementById(id);
@@ -50,49 +51,64 @@ export default function App() {
     <div className="bg-[#0b0b0b] text-white/90 min-h-screen selection:bg-[#E8401C] selection:text-white font-sans overflow-x-hidden antialiased">
       
       {/* 1. Sticky Navigation Bar */}
-      <Navbar onScrollToContact={() => scrollToSection('contact')} />
-
-      {/* 2. Hero Section */}
-      <Hero
-        onScrollToContact={() => scrollToSection('contact')}
-        onScrollToPortfolio={() => scrollToSection('portfolio')}
+      <Navbar 
+        onScrollToContact={() => {
+          setIsAdminDashboardOpen(false);
+          setTimeout(() => scrollToSection('contact'), 50);
+        }} 
+        isAdminDashboardOpen={isAdminDashboardOpen}
+        onToggleAdminDashboard={setIsAdminDashboardOpen}
       />
 
-      {/* 3. Services Directory Section */}
-      <Services
-        services={servicesData}
-        onScrollToContact={() => scrollToSection('contact')}
-      />
+      {isAdminDashboardOpen ? (
+        <div className="pt-24 min-h-screen bg-[#0c0c0d] transition-all duration-300">
+          <AdminPanel isFullPage={true} onBackToHome={() => setIsAdminDashboardOpen(false)} />
+        </div>
+      ) : (
+        <>
+          {/* 2. Hero Section */}
+          <Hero
+            onScrollToContact={() => scrollToSection('contact')}
+            onScrollToPortfolio={() => scrollToSection('portfolio')}
+          />
 
-      {/* 4. Why Us Badge & Metrics Grid */}
-      <WhyUs points={trustPoints} />
+          {/* 3. Services Directory Section */}
+          <Services
+            services={servicesData}
+            onScrollToContact={() => scrollToSection('contact')}
+          />
 
-      {/* 5. Filterable Gallery Portfolio */}
-      <Portfolio campaigns={campaignsData} />
+          {/* 4. Why Us Badge & Metrics Grid */}
+          <WhyUs points={trustPoints} />
 
-      {/* 6. Horizonal Process Roadmap */}
-      <Process steps={stepsData} />
+          {/* 5. Filterable Gallery Portfolio */}
+          <Portfolio campaigns={campaignsData} />
 
-      {/* 7. Auto-rotating Feedback Carousel */}
-      <Testimonials testimonials={testimonialsData} />
+          {/* 6. Horizonal Process Roadmap */}
+          <Process steps={stepsData} />
 
-      {/* 8. Comparative Pricing Options */}
-      <Pricing
-        plans={pricingPlans}
-        onSelectPlan={handleSelectPlan}
-      />
+          {/* 7. Auto-rotating Feedback Carousel */}
+          <Testimonials testimonials={testimonialsData} />
 
-      {/* 9. Collapsible FAQ Accordion */}
-      <FAQ faqs={faqData} />
+          {/* 8. Comparative Pricing Options */}
+          <Pricing
+            plans={pricingPlans}
+            onSelectPlan={handleSelectPlan}
+          />
 
-      {/* 10. Planning Contact Questionaire Form */}
-      <ContactForm preselectedPlan={selectedPlan} />
+          {/* 9. Collapsible FAQ Accordion */}
+          <FAQ faqs={faqData} />
 
-      {/* 11. Admin Control and Google Sheets synchronization Panel */}
-      <AdminPanel />
+          {/* 10. Planning Contact Questionaire Form */}
+          <ContactForm preselectedPlan={selectedPlan} />
 
-      {/* 12. Custom Interactive Map Info Footer */}
-      <Footer />
+          {/* Minimal in-place panel if admin is active without full-page tab trigger */}
+          <AdminPanel isFullPage={false} />
+
+          {/* 12. Custom Interactive Map Info Footer */}
+          <Footer />
+        </>
+      )}
 
     </div>
   );
