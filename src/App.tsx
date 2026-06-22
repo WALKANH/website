@@ -14,8 +14,8 @@ import Testimonials from './components/Testimonials';
 import Pricing from './components/Pricing';
 import FAQ from './components/FAQ';
 import ContactForm from './components/ContactForm';
+import AdminPanel from './components/AdminPanel';
 import Footer from './components/Footer';
-import Exporter from './components/Exporter';
 
 import {
   servicesData,
@@ -88,11 +88,11 @@ export default function App() {
       {/* 10. Planning Contact Questionaire Form */}
       <ContactForm preselectedPlan={selectedPlan} />
 
-      {/* 11. Custom Interactive Map Info Footer */}
-      <Footer />
+      {/* 11. Admin Control and Google Sheets synchronization Panel */}
+      <AdminPanel />
 
-      {/* Standalone Single File Downloader/Exporter Badge */}
-      <Exporter />
+      {/* 12. Custom Interactive Map Info Footer */}
+      <Footer />
 
     </div>
   );

@@ -1,5 +1,8 @@
 import { useState, useEffect, ChangeEvent, FormEvent } from 'react';
-import { Send, Phone, Mail, MapPin, CheckCircle, Sparkles, X, Clock } from 'lucide-react';
+import { Send, Phone, Mail, MapPin, CheckCircle, Sparkles, X, Clock, User as UserIcon, LogOut, ChevronRight } from 'lucide-react';
+import { saveLeadToFirestore, auth, fetchUserLeads, logoutUser } from '../lib/firebase';
+import { onAuthStateChanged, User } from 'firebase/auth';
+import AuthModal from './AuthModal';
 
 interface ContactFormProps {
   preselectedPlan: string;
@@ -17,6 +20,45 @@ export default function ContactForm({ preselectedPlan }: ContactFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [showToast, setShowToast] = useState(false);
 
+  // Client states
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [userLeads, setUserLeads] = useState<any[]>([]);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+
+  // Monitor auth changes
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+      if (user) {
+        // Pre-fill user profile fields
+        setFormData(prev => ({
+          ...prev,
+          name: user.displayName || prev.name,
+          email: user.email || prev.email
+        }));
+        // Retrieve past bookings
+        loadCustomerHistory(user.email || '');
+      } else {
+        setUserLeads([]);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const loadCustomerHistory = async (email: string) => {
+    if (!email) return;
+    setIsLoadingHistory(true);
+    try {
+      const history = await fetchUserLeads(email);
+      setUserLeads(history);
+    } catch (err) {
+      console.error('Không thể tải lịch sử đăng ký của khách hàng:', err);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
   // Synchronize dropdown when plan selected out of pricing cards
   useEffect(() => {
     if (preselectedPlan) {
@@ -32,7 +74,7 @@ export default function ContactForm({ preselectedPlan }: ContactFormProps) {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.phone) {
       return;
@@ -40,19 +82,33 @@ export default function ContactForm({ preselectedPlan }: ContactFormProps) {
 
     setIsLoading(true);
 
-    // Simulate reliable API integration with agency backend
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      await saveLeadToFirestore({
+        name: formData.name,
+        phone: formData.phone,
+        email: formData.email,
+        service: formData.service,
+        message: formData.message,
+      });
+
+      if (formData.email) {
+        loadCustomerHistory(formData.email);
+      }
+
       setShowToast(true);
-      // Reset details but maintain default dropdown
-      setFormData({
-        name: '',
+      // Reset details but maintain user identity and default service
+      setFormData(prev => ({
+        name: currentUser?.displayName || '',
         phone: '',
-        email: '',
+        email: currentUser?.email || '',
         service: 'Booking KOL/KOC',
         message: ''
-      });
-    }, 1200);
+      }));
+    } catch (err) {
+      console.error('Lỗi lưu thông tin liên hệ:', err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -168,6 +224,48 @@ export default function ContactForm({ preselectedPlan }: ContactFormProps) {
           {/* Booking Contact Form Card - Right */}
           <div className="lg:col-span-7 bg-white/[0.03] p-8 sm:p-10 rounded-3xl border border-white/10 shadow-2xl relative overflow-hidden backdrop-blur-md">
             
+            {/* Customer Session Dashboard Welcome bar */}
+            <div className="flex items-center justify-between mb-6 p-4 rounded-2xl bg-white/[0.02] border border-white/5 relative z-10">
+              {currentUser ? (
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-[#E8401C]/20 border border-[#E8401C]/30 text-[#E8401C] flex items-center justify-center font-bold text-xs uppercase">
+                      {currentUser.displayName ? currentUser.displayName[0] : <UserIcon className="w-4 h-4" />}
+                    </div>
+                    <div className="text-left">
+                      <p className="text-[9px] uppercase font-bold text-white/40 tracking-wider">Tài khoản khách hàng</p>
+                      <p className="text-xs font-black text-white">{currentUser.displayName || currentUser.email}</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => logoutUser()}
+                    className="inline-flex items-center gap-1.5 text-[10px] text-white/40 hover:text-white bg-white/5 hover:bg-white/10 px-2.5 py-1.5 rounded-lg border border-white/5 transition-all font-bold uppercase tracking-wider cursor-pointer"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    Đăng xuất
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between w-full gap-4">
+                  <div className="text-left">
+                    <h4 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
+                      <UserIcon className="w-3.5 h-3.5 text-[#E8401C]" />
+                      Hợp tác tư vấn dự án
+                    </h4>
+                    <p className="text-[10px] text-white/50 leading-relaxed mt-0.5">Đặt lịch hoặc Đăng nhập thành viên để tự động lưu và theo dõi tiến độ tư doanh nghiệp.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsAuthModalOpen(true)}
+                    className="shrink-0 px-3.5 py-2 rounded-xl bg-[#F5C518]/10 hover:bg-[#F5C518]/25 border border-[#F5C518]/30 text-[#F5C518] text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer"
+                  >
+                    Đăng Nhập / Đăng Ký
+                  </button>
+                </div>
+              )}
+            </div>
+
             <form onSubmit={handleSubmit} className="space-y-6 relative z-10 text-left">
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -279,11 +377,64 @@ export default function ContactForm({ preselectedPlan }: ContactFormProps) {
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
-                    <Send className="w-5 h-5" />
+                    <Send className="w-5 h-5 animate-pulse" />
                     Đăng Ký Tư Vấn Ngay
                   </div>
                 )}
               </button>
+
+              {/* Secure Footnote badging */}
+              <div className="pt-4 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-3 text-[10px] text-white/45">
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle className="w-3.5 h-3.5 text-green-500" />
+                  <span>Dữ liệu lưu trữ bảo mật bằng Cloud Firestore Encrypted</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-[#F5C518]" />
+                  <span>Đồng bộ tự động với Google Sheets của Agency</span>
+                </div>
+              </div>
+
+              {/* Customer Online Logs Timeline inside client box */}
+              {currentUser && userLeads.length > 0 && (
+                <div className="mt-8 pt-6 border-t border-white/10 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                      </span>
+                      Lịch sử yêu cầu tư vấn đã lưu ({userLeads.length})
+                    </h4>
+                    <span className="text-[10px] text-white/40 uppercase font-bold tracking-wider">Thời gian thực</span>
+                  </div>
+
+                  <div className="space-y-3 max-h-[220px] overflow-y-auto pr-1">
+                    {userLeads.map((lead, idx) => (
+                      <div key={lead.id || idx} className="p-3.5 bg-white/[0.01] hover:bg-white/[0.02] border border-white/5 hover:border-white/10 rounded-xl transition-all flex items-center justify-between gap-3 text-xs">
+                        <div className="text-left space-y-1">
+                          <p className="font-extrabold text-white text-xs">{lead.service}</p>
+                          <p className="text-[10px] text-white/45 font-mono flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-[#E8401C]" />
+                            {lead.createdAt ? new Date(lead.createdAt).toLocaleString('vi-VN') : 'Mới'}
+                          </p>
+                          {lead.message && (
+                            <p className="text-[10px] text-white/30 italic truncate max-w-[250px]">
+                              "{lead.message}"
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex flex-col items-end gap-1.5">
+                          <span className="px-2.5 py-1 rounded-full bg-green-500/10 text-green-400 border border-green-500/15 text-[9px] font-black uppercase tracking-wider">
+                            Đã Tiếp Nhận
+                          </span>
+                          <span className="text-[9px] text-[#F5C518] font-bold">Sales đang xử lý</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
             </form>
 
@@ -292,6 +443,17 @@ export default function ContactForm({ preselectedPlan }: ContactFormProps) {
         </div>
 
       </div>
+
+      <AuthModal 
+        isOpen={isAuthModalOpen} 
+        onClose={() => setIsAuthModalOpen(false)} 
+        onSuccess={(user) => {
+          setCurrentUser(user);
+          if (user.email) {
+            loadCustomerHistory(user.email);
+          }
+        }} 
+      />
     </section>
   );
 }

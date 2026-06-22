@@ -1,5 +1,8 @@
 import { useState, useEffect, MouseEvent } from 'react';
-import { Menu, X, ArrowRight } from 'lucide-react';
+import { Menu, X, ArrowRight, User as UserIcon, LogOut, Sparkles } from 'lucide-react';
+import { onAuthStateChanged, User } from 'firebase/auth';
+import { auth, logoutUser } from '../lib/firebase';
+import AuthModal from './AuthModal';
 
 interface NavbarProps {
   onScrollToContact: () => void;
@@ -9,6 +12,17 @@ export default function Navbar({ onScrollToContact }: NavbarProps) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [activeSection, setActiveSection] = useState('hero');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Authentication State
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+    });
+    return () => unsubscribe();
+  }, []);
 
   const navLinks = [
     { name: 'Dịch vụ', href: '#services', id: 'services' },
@@ -112,7 +126,33 @@ export default function Navbar({ onScrollToContact }: NavbarProps) {
           </div>
 
           {/* CTA Header Button */}
-          <div className="hidden md:block">
+          <div className="hidden md:flex items-center gap-4">
+            {currentUser ? (
+              <div className="flex items-center gap-3 bg-white/5 border border-white/10 px-4 py-1.5 rounded-full">
+                <div className="bg-[#E8401C]/20 border border-[#E8401C]/35 text-[#E8401C] w-7 h-7 flex items-center justify-center rounded-full font-extrabold text-xs uppercase">
+                  {currentUser.displayName ? currentUser.displayName[0] : <UserIcon className="w-3.5 h-3.5" />}
+                </div>
+                <div className="text-left">
+                  <p className="text-[10px] font-black text-white leading-none whitespace-nowrap">{currentUser.displayName || 'Thành Viên'}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => logoutUser()}
+                  title="Đăng xuất"
+                  className="text-white/40 hover:text-white p-1 rounded transition-colors cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setIsAuthModalOpen(true)}
+                className="bg-white/5 border border-white/10 hover:border-white/25 hover:bg-white/10 text-white text-xs font-bold px-4 py-2 rounded-full cursor-pointer transition-all"
+              >
+                Đăng Nhập
+              </button>
+            )}
+
             <button
               id="cta-navbar"
               onClick={onScrollToContact}
@@ -162,7 +202,41 @@ export default function Navbar({ onScrollToContact }: NavbarProps) {
               {link.name}
             </a>
           ))}
-          <div className="pt-6 px-4">
+          <div className="pt-6 px-4 space-y-3">
+            {currentUser ? (
+              <div className="p-4 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-between text-left">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-[#E8401C]/20 text-[#E8401C] flex items-center justify-center font-bold text-sm uppercase">
+                    {currentUser.displayName ? currentUser.displayName[0] : <UserIcon className="w-4 h-4" />}
+                  </div>
+                  <div>
+                    <p className="text-xs text-white font-extrabold">{currentUser.displayName || currentUser.email}</p>
+                    <p className="text-[9px] uppercase font-bold text-white/45 tracking-widest">Đã đăng nhập</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    logoutUser();
+                    setMobileMenuOpen(false);
+                  }}
+                  className="p-2 bg-white/5 rounded-lg text-white/40 hover:text-white transition-colors cursor-pointer"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  setIsAuthModalOpen(true);
+                }}
+                className="w-full inline-flex items-center justify-center px-4 py-3.5 bg-white/5 hover:bg-[#E8401C]/10 border border-white/10 text-white text-xs font-black uppercase tracking-wider rounded-full transition-all cursor-pointer"
+              >
+                Đăng Nhập / Đăng Ký
+              </button>
+            )}
+
             <button
               id="cta-mobile-contact"
               onClick={() => {
@@ -176,6 +250,12 @@ export default function Navbar({ onScrollToContact }: NavbarProps) {
           </div>
         </div>
       </div>
+
+      <AuthModal 
+        isOpen={isAuthModalOpen} 
+        onClose={() => setIsAuthModalOpen(false)} 
+        onSuccess={(user) => setCurrentUser(user)} 
+      />
     </nav>
   );
 }
