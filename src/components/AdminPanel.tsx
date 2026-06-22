@@ -692,16 +692,6 @@ export default function AdminPanel({ isFullPage = false, onBackToHome }: AdminPa
                     ← Quay lại trang chủ
                   </button>
                 )}
-                
-                {offlineLeads.length > 0 && (
-                  <button
-                    onClick={handleSyncOfflineBacklog}
-                    disabled={isSyncingOfflineQueue}
-                    className="bg-amber-500/20 hover:bg-amber-500/35 text-amber-500 border border-amber-500/30 px-5 py-2.5 rounded-full text-xs font-black uppercase tracking-wider transition-all cursor-pointer animate-pulse"
-                  >
-                    Khôi phục {offlineLeads.length} lead ngoại tuyến
-                  </button>
-                )}
               </div>
             </div>
             

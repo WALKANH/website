@@ -1,7 +1,8 @@
 import { useState, useEffect, ChangeEvent, FormEvent } from 'react';
 import { Send, Phone, Mail, MapPin, CheckCircle, Sparkles, X, Clock, User as UserIcon, LogOut, ChevronRight } from 'lucide-react';
-import { saveLeadToFirestore, auth, fetchUserLeads, logoutUser, isAdmin } from '../lib/firebase';
+import { saveLeadToFirestore, auth, logoutUser, isAdmin, db } from '../lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
+import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import AuthModal from './AuthModal';
 
 interface ContactFormProps {
@@ -37,6 +38,20 @@ export default function ContactForm({ preselectedPlan }: ContactFormProps) {
     timestamp: string;
   } | null>(null);
 
+  // Pre-fill fields from localStorage on mount
+  useEffect(() => {
+    const cachedName = localStorage.getItem('ts_client_name') || '';
+    const cachedPhone = localStorage.getItem('ts_client_phone') || '';
+    const cachedEmail = localStorage.getItem('ts_client_email') || '';
+
+    setFormData(prev => ({
+      ...prev,
+      name: cachedName || prev.name,
+      phone: cachedPhone || prev.phone,
+      email: cachedEmail || prev.email
+    }));
+  }, []);
+
   // Monitor auth changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -48,26 +63,52 @@ export default function ContactForm({ preselectedPlan }: ContactFormProps) {
           name: user.displayName || prev.name,
           email: user.email || prev.email
         }));
-        // Retrieve past bookings
-        loadCustomerHistory(user.email || '');
-      } else {
-        setUserLeads([]);
       }
     });
     return () => unsubscribe();
   }, []);
 
-  const loadCustomerHistory = async (email: string) => {
-    if (!email) return;
-    setIsLoadingHistory(true);
-    try {
-      const history = await fetchUserLeads(email);
-      setUserLeads(history);
-    } catch (err) {
-      console.error('Không thể tải lịch sử đăng ký của khách hàng:', err);
-    } finally {
-      setIsLoadingHistory(false);
+  // Real-time Firestore customer request history stream
+  // This satisfies "đơn tư vấn có thì tự cập nhật. Kết nối firebase mà làm. Mỗi lần thoát ra là không mất!"
+  useEffect(() => {
+    const contactEmail = currentUser?.email || formData.email || localStorage.getItem('ts_client_email') || '';
+    const contactPhone = formData.phone || localStorage.getItem('ts_client_phone') || '';
+
+    if (!contactEmail && !contactPhone) {
+      setUserLeads([]);
+      return;
     }
+
+    setIsLoadingHistory(true);
+
+    const q = query(collection(db, 'leads'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const docs: any[] = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        const leadEmail = (data.email || '').toLowerCase();
+        const leadPhone = data.phone || '';
+        
+        const matchesEmail = contactEmail && leadEmail === contactEmail.toLowerCase();
+        const matchesPhone = contactPhone && leadPhone === contactPhone;
+        
+        if (matchesEmail || matchesPhone) {
+          docs.push({ ...data, id: doc.id });
+        }
+      });
+      setUserLeads(docs);
+      setIsLoadingHistory(false);
+    }, (error) => {
+      console.error('Real-time sync of user leads failed:', error);
+      setIsLoadingHistory(false);
+    });
+
+    return () => unsubscribe();
+  }, [currentUser, formData.email, formData.phone, submittedLead]);
+
+  const loadCustomerHistory = async (email: string) => {
+    // Already synced in real-time by the useEffect subscriber!
+    console.log('Real-time listener handling updates for:', email);
   };
 
   // Synchronize dropdown when plan selected out of pricing cards
@@ -104,6 +145,16 @@ export default function ContactForm({ preselectedPlan }: ContactFormProps) {
 
       const currentTimestamp = new Date().toISOString();
 
+      try {
+        localStorage.setItem('ts_client_name', formData.name);
+        localStorage.setItem('ts_client_phone', formData.phone);
+        if (formData.email) {
+          localStorage.setItem('ts_client_email', formData.email);
+        }
+      } catch (storageErr) {
+        console.warn('Cannot write customer details to localStorage', storageErr);
+      }
+
       setSubmittedLead({
         id: docId,
         name: formData.name,
@@ -121,9 +172,9 @@ export default function ContactForm({ preselectedPlan }: ContactFormProps) {
       setShowToast(true);
       // Reset details but maintain user identity and default service
       setFormData(prev => ({
-        name: currentUser?.displayName || '',
-        phone: '',
-        email: currentUser?.email || '',
+        name: currentUser?.displayName || formData.name || '',
+        phone: formData.phone || '',
+        email: currentUser?.email || formData.email || '',
         service: 'Booking KOL/KOC',
         message: ''
       }));
@@ -512,49 +563,60 @@ export default function ContactForm({ preselectedPlan }: ContactFormProps) {
                   </div>
                 </div>
 
-                {/* Customer Online Logs Timeline inside client box */}
-                {currentUser && userLeads.length > 0 ? (
-                  <div className="mt-8 pt-6 border-t border-white/10 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
-                        <span className="relative flex h-2 w-2">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                        </span>
-                        Lịch sử yêu cầu tư vấn đã lưu ({userLeads.length})
-                      </h4>
-                      <span className="text-[10px] text-white/40 uppercase font-bold tracking-wider">Thời gian thực</span>
-                    </div>
-
-                    <div className="space-y-3 max-h-[220px] overflow-y-auto pr-1">
-                      {userLeads.map((lead, idx) => (
-                        <div key={`${lead.id || 'idx'}_${idx}_${lead.createdAt || ''}`} className="p-3.5 bg-white/[0.01] hover:bg-white/[0.02] border border-white/5 hover:border-white/10 rounded-xl transition-all flex items-center justify-between gap-3 text-xs">
-                          <div className="text-left space-y-1">
-                            <p className="font-extrabold text-white text-xs">{lead.service}</p>
-                            <p className="text-[10px] text-white/45 font-mono flex items-center gap-1">
-                              <Clock className="w-3 h-3 text-[#E8401C]" />
-                              {lead.createdAt ? new Date(lead.createdAt).toLocaleString('vi-VN') : 'Mới'}
-                            </p>
-                            {lead.message && (
-                              <p className="text-[10px] text-white/30 italic truncate max-w-[250px]">
-                                "{lead.message}"
-                              </p>
-                            )}
-                          </div>
-                          <div className="flex flex-col items-end gap-1.5">
-                            <span className="px-2.5 py-1 rounded-full bg-green-500/10 text-green-400 border border-green-500/15 text-[9px] font-black uppercase tracking-wider">
-                              Đã Tiếp Nhận
-                            </span>
-                            <span className="text-[10px] text-[#F5C518] font-bold">Sales đang xử lý</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-
               </form>
             )}
+
+            {/* Customer Online Logs Timeline inside client box */}
+            {userLeads.length > 0 ? (
+              <div className="mt-8 pt-6 border-t border-white/10 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                  <div>
+                    <h4 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                      </span>
+                      Lịch sử yêu cầu tư vấn đã lưu ({userLeads.length})
+                    </h4>
+                    <p className="text-[9px] text-white/40 mt-0.5">
+                      Nhận diện theo: <span className="text-[#F5C518] font-bold">{currentUser?.email || localStorage.getItem('ts_client_phone') || localStorage.getItem('ts_client_email') || 'Trình duyệt này'}</span>
+                    </p>
+                  </div>
+                  <span className="text-[10px] text-white/40 uppercase font-bold tracking-wider self-start sm:self-center">Thời gian thực</span>
+                </div>
+
+                <div className="space-y-3 max-h-[220px] overflow-y-auto pr-1">
+                  {userLeads.map((lead, idx) => (
+                    <div key={`${lead.id || 'idx'}_${idx}_${lead.createdAt || ''}`} className="p-3.5 bg-white/[0.01] hover:bg-white/[0.02] border border-white/5 hover:border-white/10 rounded-xl transition-all flex items-center justify-between gap-3 text-xs">
+                      <div className="text-left space-y-1">
+                        <p className="font-extrabold text-white text-xs">{lead.service}</p>
+                        <p className="text-[10px] text-white/45 font-mono flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-[#E8401C]" />
+                          {lead.createdAt ? new Date(lead.createdAt).toLocaleString('vi-VN') : 'Mới'}
+                        </p>
+                        {lead.message && (
+                          <p className="text-[10px] text-white/30 italic truncate max-w-[250px]">
+                            "{lead.message}"
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex flex-col items-end gap-1.5">
+                        <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                          lead.status === 'Đã tiếp xúc/hẹn gặp' || lead.status === 'Đang xử lý campaign'
+                            ? 'bg-amber-500/10 text-amber-400 border border-amber-500/15'
+                            : lead.status === 'Từ chối / Spam'
+                            ? 'bg-red-500/10 text-red-400 border border-red-500/15'
+                            : 'bg-green-500/10 text-green-400 border border-green-500/15'
+                        }`}>
+                          {lead.status || 'Mới'}
+                        </span>
+                        <span className="text-[10px] text-[#F5C518] font-bold">Sales đang xử lý</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
 
           </div>
 
