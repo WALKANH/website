@@ -476,21 +476,7 @@ export default function ContactForm({ preselectedPlan }: ContactFormProps) {
                   </select>
                 </div>
 
-                {/* Message */}
-                <div className="flex flex-col space-y-2">
-                  <label htmlFor="message" className="text-[11px] font-bold text-white/70 uppercase tracking-wider">
-                    Mô Tả Nhu Cầu Hoặc Kênh Kinh Doanh/Sản Phẩm
-                  </label>
-                  <textarea
-                    id="message"
-                    name="message"
-                    rows={4}
-                    value={formData.message}
-                    onChange={handleChange}
-                    placeholder="Ghi chú về phân khúc sản phẩm, kế hoạch chiến dịch hoặc ngân sách dự tính..."
-                    className="w-full bg-[#1e1e1e] text-white border border-white/15 hover:border-white/20 rounded-xl py-3 px-4 text-sm focus:bg-[#252525]/80 focus:outline-none focus:ring-2 focus:ring-[#E8401C]/40 focus:border-[#E8401C] transition-all"
-                  />
-                </div>
+
 
                 {/* Submit triggers Loader */}
                 <button

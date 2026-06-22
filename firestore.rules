@@ -1,0 +1,33 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Catch-all default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Admin helper
+    function isAdmin() {
+      return request.auth != null && (
+        request.auth.token.email == 'vudinhanhquoc414@gmail.com' ||
+        request.auth.token.email == 'admin@tsmedia.vn' ||
+        request.auth.token.email == 'admin@tsmedia.agency' ||
+        request.auth.token.email == 'admin@gmail.com' ||
+        request.auth.token.email == 'tsmedia.admin@gmail.com'
+      );
+    }
+
+    // Secure leads collection
+    match /leads/{leadId} {
+      // Unauthenticated visitors are allowed to submit leads.
+      // This is safe because they only write to their specific generated document.
+      allow create: if request.resource.data.name is string && 
+                     request.resource.data.name.size() > 0 && 
+                     request.resource.data.phone is string && 
+                     request.resource.data.phone.size() > 0;
+      
+      // Reading, updating or deleting leads is exclusively for authorized TS Media Administrators
+      allow read, update, delete: if isAdmin();
+    }
+  }
+}
