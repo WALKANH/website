@@ -154,7 +154,7 @@ export default function Footer() {
               <li className="flex items-start gap-3">
                 <MapPin className="w-5 h-5 text-[#E8401C] shrink-0 mt-0.5" />
                 <span className="leading-relaxed">
-                  Trụ sở chính: Tầng 12, Toà Nhà Landmark 81, Khu Đô Thị Vinhomes Central Park, Quận Bình Thạnh, TP. Hồ Chí Minh
+                  VP : Lầu 3, 538/185 Đoàn Văn Bơ, phường Khánh Hội, Ho Chi Minh City, Vietnam
                 </span>
               </li>
 

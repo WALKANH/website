@@ -10,15 +10,15 @@ import {
   updateProfile,
   signOut
 } from 'firebase/auth';
-import { getFirestore, collection, addDoc, getDocs, orderBy, query, where, doc, setDoc } from 'firebase/firestore';
+import { initializeFirestore, collection, addDoc, getDocs, orderBy, query, where, doc, setDoc } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { LeadService } from '../services/leadService';
 
 // Initialize Firebase App
 const app = initializeApp(firebaseConfig);
 
-// Initialize Cloud Firestore and Auth
-export const db = getFirestore(app);
+// Initialize Cloud Firestore with custom database ID and Auth
+export const db = initializeFirestore(app, {}, 'ai-studio-2912d09c-f342-4edf-ad9f-4d0e8ffa9a58');
 export const auth = getAuth(app);
 
 // Provider with Sheets API Scopes

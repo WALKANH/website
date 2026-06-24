@@ -291,7 +291,7 @@ export default function ContactForm({ preselectedPlan }: ContactFormProps) {
                     Địa chỉ Văn Phòng
                   </span>
                   <span className="font-extrabold text-sm text-white leading-tight">
-                    Tầng 12, Toà Nhà Landmark 81, Quận Bình Thạnh, TP. Hồ Chí Minh
+                    VP : Lầu 3, 538/185 Đoàn Văn Bơ, phường Khánh Hội, Ho Chi Minh City, Vietnam
                   </span>
                 </div>
               </div>
